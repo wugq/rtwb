@@ -1,0 +1,72 @@
+# Build the net/rtwb-kmod package in a FreeBSD VM.
+# Every push/PR: portlint, stage-qa, check-plist, package (kept as an
+# artifact).  Tags v*: the package is attached to a GitHub release.
+#
+# A kernel module only works on the FreeBSD version it was built for,
+# so each entry of the matrix builds against that release's /usr/src.
+
+name: package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['15.1']
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build in FreeBSD ${{ matrix.release }}
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: ${{ matrix.release }}
+          arch: x86_64
+          sync: rsync
+          copyback: true
+          prepare: |
+            pkg install -y git portlint
+          run: |
+            set -eux
+            ws=$PWD		# the synced checkout
+            git config --global --add safe.directory '*'
+            rel=$(freebsd-version -u | sed 's/-p[0-9]*$//')
+
+            # Kernel sources for the module, ports framework for the port.
+            fetch -o /tmp/src.txz \
+              "https://download.freebsd.org/releases/amd64/${rel}/src.txz"
+            tar -C / -xf /tmp/src.txz
+            git clone --depth 1 https://git.FreeBSD.org/ports.git /usr/ports
+
+            # The port builds from a distfile of this checkout.
+            ver=$(make -C ports/net/rtwb-kmod -V DISTVERSION \
+              PORTSDIR=/usr/ports)
+            mkdir -p /usr/ports/distfiles
+            scripts/make-distfile.sh "$ver" /usr/ports/distfiles HEAD
+            cp -R ports/net/rtwb-kmod /usr/ports/net/
+            cd /usr/ports/net/rtwb-kmod
+            make makesum clean
+            portlint -AC
+            make BATCH=yes DEVELOPER=yes stage stage-qa check-plist package
+            mkdir -p "$ws/dist"
+            cp work/pkg/*.pkg "$ws/dist/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rtwb-kmod-freebsd-${{ matrix.release }}
+          path: dist/*.pkg
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.pkg
