@@ -1,0 +1,11 @@
+rtwb is a native net80211 driver for the Realtek RTL8822BE PCIe
+802.11a/b/g/n/ac wireless adapter (PCI ID 10ec:b822), without the
+LinuxKPI compatibility layer.
+
+It supports station and monitor mode, WPA/WPA2 with software crypto,
+802.11n (HT20/HT40) and 802.11ac (VHT80), with rate adaptation done by
+the adapter's firmware.  The hardware code is ported from the Linux
+rtw88 driver.
+
+Bluetooth coexistence is limited: while the wireless interface is up,
+the shared antenna belongs to Wi-Fi.

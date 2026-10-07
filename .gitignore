@@ -1,0 +1,12 @@
+ref/
+*.ko
+*.o
+*.debug
+.depend*
+export_syms
+opt_global.h
+*_if.h
+machine
+x86
+i386
+tmp/

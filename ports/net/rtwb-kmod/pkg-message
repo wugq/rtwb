@@ -1,0 +1,22 @@
+[
+{ type: install
+  message: <<EOM
+The if_rtwb module is not loaded automatically.  To use it instead of
+the LinuxKPI rtw88 driver, add the following to /etc/rc.conf:
+
+kld_list="${kld_list} if_rtwb"
+devmatch_blocklist="if_rtw88"
+wlans_rtwb0="wlan0"
+create_args_wlan0="country XX"
+ifconfig_wlan0="WPA DHCP"
+
+Replace XX with your country code.  For countries whose entry in
+/etc/regdomain.xml has no VHT channels (e.g. those using the APAC
+regulatory domain), add "-vht" to create_args_wlan0, otherwise net80211
+falls back to 11a on 5 GHz.
+
+The adapter firmware comes from wifi-firmware-rtw88-kmod-rtw8822b.
+Statistics and debugging knobs are under "sysctl dev.rtwb.0".
+EOM
+}
+]
