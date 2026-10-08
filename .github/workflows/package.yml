@@ -55,6 +55,8 @@ jobs:
             cp -R ports/net/rtwb-kmod /usr/ports/net/
             cd /usr/ports/net/rtwb-kmod
             make makesum clean
+            # portlint -C wants every port file tracked by git.
+            git -C /usr/ports add net/rtwb-kmod
             portlint -AC
             make BATCH=yes DEVELOPER=yes stage stage-qa check-plist package
             mkdir -p "$ws/dist"
