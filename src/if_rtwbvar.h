@@ -161,7 +161,7 @@ struct rtwb_softc {
 	struct mtx		sc_mtx;
 	const struct firmware	*sc_fw;
 	struct mbufq		sc_rxq;		/* frames for net80211 */
-	struct mbufq		sc_snd;		/* data frames waiting for a slot */
+	struct mbufq		sc_snd;		/* data frames for TX */
 	uint32_t		sc_rcr;		/* REG_RCR value (hal.rcr) */
 	struct rtwb_rx_radiotap_header sc_rxtap;
 	struct rtwb_tx_radiotap_header sc_txtap;
@@ -190,17 +190,17 @@ struct rtwb_softc {
 	int			sc_irq_rid;
 	void			*sc_ih;
 	bool			sc_msi;
-	bool			sc_running;	/* interrupts may be re-enabled */
+	bool			sc_running;	/* hardware up, interrupts on */
 	bool			sc_powered;	/* MAC power-on sequence done */
 	bool			sc_ic_attached;
 	bool			sc_assoc;	/* station vap in RUN */
-	struct rtw_sta_info	sc_sta;		/* the AP, for the firmware RA */
+	struct rtw_sta_info	sc_sta;		/* the AP, for firmware RA */
 	uint8_t			sc_ra_rate;	/* last RA report: DESC_RATE* */
 	uint8_t			sc_ra_sgi;
 	uint8_t			sc_ra_bw;
 	uint64_t		sc_ra_reports;
 	uint32_t		sc_reg_addr;	/* debug sysctl */
-	int			sc_tx_report;	/* debug: request CCX TX reports */
+	int			sc_tx_report;	/* debug: CCX TX reports */
 	int			sc_debug;
 	uint8_t			sc_tx_report_sn;
 	uint64_t		sc_tx_rpt_ok;
@@ -259,7 +259,7 @@ void	rtwb_dma_free(struct rtwb_dma *);
 int	rtwb_alloc_rings(struct rtwb_softc *);
 void	rtwb_free_rings(struct rtwb_softc *);
 
-/* Register access. The chip is little-endian; amd64 bus_space does no swapping. */
+/* Register access; the chip's registers are little-endian. */
 #define rtwb_read_1(sc, reg)	bus_read_1((sc)->sc_mem, (reg))
 #define rtwb_read_2(sc, reg)	bus_read_2((sc)->sc_mem, (reg))
 #define rtwb_read_4(sc, reg)	bus_read_4((sc)->sc_mem, (reg))

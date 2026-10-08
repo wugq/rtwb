@@ -34,8 +34,8 @@
  * interrupts) runs when net80211 brings the interface up (ic_parent) and
  * is undone when it goes down.
  *
- * M5: transmit path (fixed legacy rates, software crypto) and station
- * mode association.
+ * Station and monitor mode, 802.11a/b/g/n/ac (up to VHT80, two streams),
+ * rate adaptation in the firmware, software crypto in net80211.
  */
 
 #include <sys/param.h>
@@ -103,7 +103,6 @@
 #define REG_PORT0_AID		0x06a8		/* mask 0x7ff */
 #define RTW_NET_NO_LINK		0
 #define RTW_NET_MGD_LINKED	2
-
 
 static const uint8_t rtwb_chan_5ghz[] = {
 	36, 40, 44, 48, 52, 56, 60, 64,
@@ -655,9 +654,8 @@ static void
 rtwb_getradiocaps(struct ieee80211com *ic, int maxchans, int *nchans,
     struct ieee80211_channel chans[])
 {
-	uint8_t bands[IEEE80211_MODE_BYTES];
-
 	struct rtwb_softc *sc = ic->ic_softc;
+	uint8_t bands[IEEE80211_MODE_BYTES];
 	int cbw_flags;
 
 	cbw_flags = (sc->sc_hw_cap_bw & BIT(RTW_CHANNEL_WIDTH_40)) ?
@@ -854,7 +852,8 @@ rtwb_start(struct rtwb_softc *sc)
 		}
 		if (error != 0) {
 			/* rtwb_tx_start() consumed m; the node ref is ours */
-			if_inc_counter(ni->ni_vap->iv_ifp, IFCOUNTER_OERRORS, 1);
+			if_inc_counter(ni->ni_vap->iv_ifp, IFCOUNTER_OERRORS,
+			    1);
 			ieee80211_free_node(ni);
 		}
 	}
@@ -1208,7 +1207,8 @@ rtwb_sysctl_txpwr(SYSCTL_HANDLER_ARGS)
 		sbuf_printf(sb, "\npath %c:", 'A' + path);
 		/* CCK, OFDM, HT MCS0-15, VHT 1SS/2SS MCS0-9 */
 		for (rate = 0; rate <= 0x3f; rate++)
-			sbuf_printf(sb, " %02x", sc->hal.tx_pwr_tbl[path][rate]);
+			sbuf_printf(sb, " %02x",
+			    sc->hal.tx_pwr_tbl[path][rate]);
 	}
 	RTWB_UNLOCK(sc);
 	error = sbuf_finish(sb);
@@ -1244,9 +1244,11 @@ rtwb_sysctl_attach(struct rtwb_softc *sc)
 	SYSCTL_ADD_U64(ctx, child, OID_AUTO, "tx_err_map", CTLFLAG_RD,
 	    &sc->sc_tx_err_map, 0, "TX drops: DMA mapping");
 	SYSCTL_ADD_INT(ctx, child, OID_AUTO, "tx_err_map_last", CTLFLAG_RD,
-	    &sc->sc_tx_err_map_last, 0, "errno of the last DMA mapping failure");
+	    &sc->sc_tx_err_map_last, 0,
+	    "errno of the last DMA mapping failure");
 	SYSCTL_ADD_U64(ctx, child, OID_AUTO, "tx_qfull", CTLFLAG_RD,
-	    &sc->sc_tx_qfull, 0, "frames dropped because the send queue was full");
+	    &sc->sc_tx_qfull, 0,
+	    "frames dropped because the send queue was full");
 	SYSCTL_ADD_U64(ctx, child, OID_AUTO, "tx_queued", CTLFLAG_RD,
 	    &sc->sc_tx_queued, 0, "frames that waited for a free TX slot");
 	SYSCTL_ADD_U64(ctx, child, OID_AUTO, "rx_c2h", CTLFLAG_RD,
@@ -1399,8 +1401,9 @@ static driver_t rtwb_driver = {
 };
 
 /*
- * No MODULE_PNP_INFO on purpose: devmatch must not auto-load this module
- * at boot while it is under development; load it by hand with kldload.
+ * No MODULE_PNP_INFO on purpose: the base system's if_rtw88 claims the
+ * same device, and devmatch would load both at boot.  Users choose rtwb
+ * with kld_list and keep if_rtw88 out with devmatch_blocklist.
  */
 DRIVER_MODULE(rtwb, pci, rtwb_driver, NULL, NULL);
 MODULE_VERSION(rtwb, 1);
