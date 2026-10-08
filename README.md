@@ -21,8 +21,19 @@ pkg pulls in the firmware package `wifi-firmware-rtw88-kmod-rtw8822b`:
 
 A kernel module only works on the FreeBSD version it was built for (the
 `<osversion>` suffix, e.g. `1501000` for 15.1); reinstall a matching
-package after upgrading FreeBSD.  Alternatively build the port in
-`ports/net/rtwb-kmod`, which needs `/usr/src` and the ports tree.
+package after upgrading FreeBSD.
+
+Or build it from the port in this repository, which fetches the release
+source from GitHub.  This needs the ports tree and `/usr/src` matching
+the running kernel, and is also the way to get a package for a FreeBSD
+version the releases do not cover:
+
+    git clone https://github.com/wugq/rtwb
+    cd rtwb/ports/net/rtwb-kmod
+    sudo make install clean
+
+Use `sudo make reinstall clean` instead to upgrade an installed version
+(after `git pull`), or `make package` to only build the `.pkg`.
 
 Then select the driver in `/etc/rc.conf` (the base system's rtw88 claims
 the same device) and reboot:
