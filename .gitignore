@@ -10,3 +10,5 @@ machine
 x86
 i386
 tmp/
+# Personal notes, kept out of the repository
+local/
