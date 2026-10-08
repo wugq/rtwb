@@ -1,0 +1,214 @@
+.\"-
+.\" SPDX-License-Identifier: BSD-2-Clause
+.\"
+.\" Copyright (c) 2026 wugq <wugq.dev@gmail.com>
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd October 8, 2026
+.Dt RTWB 4
+.Os
+.Sh NAME
+.Nm rtwb
+.Nd native driver for the Realtek RTL8822BE IEEE 802.11ac wireless adapter
+.Sh SYNOPSIS
+The driver is not loaded automatically, because the base system's
+.Xr rtw88 4
+driver claims the same device.
+To use
+.Nm
+instead, place the following lines in
+.Xr rc.conf 5 :
+.Bd -literal -offset indent
+devmatch_blocklist="${devmatch_blocklist} if_rtw88"
+kld_list="${kld_list} if_rtwb"
+.Ed
+.Pp
+To load the driver by hand:
+.Pp
+.Dl kldload if_rtwb
+.Sh DESCRIPTION
+The
+.Nm
+driver provides support for the Realtek RTL8822BE PCIe wireless network
+adapter on top of the native
+.Xr net80211 4
+wireless stack.
+It does not use the
+.Xr linuxkpi 4
+compatibility framework.
+The hardware support code is ported from Realtek's rtw88 driver for
+Linux.
+.Pp
+The driver supports station and monitor mode.
+It supports IEEE 802.11a/b/g, 802.11n with 20 and 40 MHz channels, and
+802.11ac with 80 MHz channels, with two spatial streams.
+Transmit rates are chosen by the adapter's firmware.
+WEP, TKIP and CCMP are done in software by
+.Xr net80211 4 .
+Only one virtual interface can exist at a time.
+.Pp
+The driver needs the RTL8822B firmware image
+.Pa rtw88/rtw8822b_fw.bin ,
+which is loaded with
+.Xr firmware 9 .
+It is provided by the
+.Pa net/wifi-firmware-rtw88-kmod@rtw8822b
+port
+.Pq package Pa wifi-firmware-rtw88-kmod-rtw8822b .
+.Pp
+For more information on configuring this device, see
+.Xr ifconfig 8 .
+.Sh HARDWARE
+The
+.Nm
+driver supports the following PCIe Wi-Fi devices:
+.Pp
+.Bl -bullet -offset indent -compact
+.It
+Realtek 802.11ac wireless 8822be (RTL8822BE)
+.El
+.Sh SYSCTL VARIABLES
+The following read-only variables report driver statistics under
+.Va dev.rtwb.%d :
+.Bl -tag -width "tx_err_map_last"
+.It Va rx_frames , rx_beacons , rx_crc_err
+Frames received, beacons received, and frames dropped because of a CRC
+or ICV error.
+.It Va rx_tag_err
+Receive descriptors whose sequence tag did not match; the first one is
+reported as
+.Dq pci bus timeout, check dma status .
+.It Va tx_frames , tx_done
+Frames handed to the hardware and frames the hardware completed.
+.It Va tx_queued
+Frames that waited in the driver's send queue for a free descriptor.
+.It Va tx_qfull
+Frames dropped because the send queue was full.
+.It Va tx_err , tx_err_encap , tx_err_mbuf , tx_err_map , tx_err_map_last
+Frames dropped because of an error, split by cause: crypto
+encapsulation, mbuf allocation, DMA mapping, and the error number of the
+last DMA mapping failure.
+.It Va ra_rate , ra_bw , ra_reports
+The rate and channel width last chosen by the firmware's rate adaptation,
+and the number of its reports.
+.It Va txpwr
+The transmit power index programmed for each rate and RF path.
+.It Va intr , rx_c2h , h2c_sent , h2c_done , last_c2h_id
+Interrupt and firmware message counters.
+.El
+.Pp
+The following variables are writable and meant for debugging:
+.Bl -tag -width "tx_err_map_last"
+.It Va debug
+Print the rate adaptation parameters on association.
+.It Va tx_report
+Ask the firmware to report the outcome of every transmitted frame;
+counted in
+.Va tx_rpt_ok
+and
+.Va tx_rpt_fail .
+.It Va reg_addr , reg_val
+Read or write the 32-bit chip register at
+.Va reg_addr .
+.It Va channel
+Tune the radio to a 20 MHz channel, bypassing
+.Xr net80211 4 .
+.El
+.Sh FILES
+.Bl -tag -width "/boot/firmware/rtw88/rtw8822b_fw.bin" -compact
+.It Pa /boot/modules/if_rtwb.ko
+The driver module.
+.It Pa /boot/firmware/rtw88/rtw8822b_fw.bin
+The firmware image.
+.El
+.Sh EXAMPLES
+Join a WPA2 network at boot, with the regulatory country set to New
+Zealand, in
+.Xr rc.conf 5 :
+.Bd -literal -offset indent
+wlans_rtwb0="wlan0"
+create_args_wlan0="country NZ"
+ifconfig_wlan0="WPA DHCP"
+.Ed
+.Pp
+Replace the station interface with a monitor mode interface and capture
+frames with their radio information:
+.Bd -literal -offset indent
+ifconfig wlan0 destroy
+ifconfig wlan0 create wlandev rtwb0 wlanmode monitor up
+tcpdump -i wlan0 -y IEEE802_11_RADIO
+.Ed
+.Sh DIAGNOSTICS
+.Bl -diag
+.It "rtwb%d: could not load firmware rtw88/rtw8822b_fw.bin"
+The firmware package is not installed.
+.It "rtwb%d: unsupported RFE option %u"
+The board uses a radio front-end layout the driver does not know.
+.It "rtwb%d: hardware init failed (%d)"
+The adapter could not be brought up when the interface was marked up.
+.El
+.Sh SEE ALSO
+.Xr pci 4 ,
+.Xr rtw88 4 ,
+.Xr rtwn 4 ,
+.Xr wlan 4 ,
+.Xr wlan_ccmp 4 ,
+.Xr wlan_tkip 4 ,
+.Xr wlan_wep 4 ,
+.Xr rc.conf 5 ,
+.Xr regdomain 5 ,
+.Xr ifconfig 8 ,
+.Xr wpa_supplicant 8
+.Sh HISTORY
+The
+.Nm
+driver was written in 2026 as an out-of-tree module for
+.Fx 15.1 .
+.Sh AUTHORS
+.An -nosplit
+The
+.Nm
+driver was written by
+.An wugq Aq Mt wugq.dev@gmail.com .
+The hardware support code is derived from the Linux rtw88 driver by
+Realtek Corporation, under its BSD-3-Clause license option.
+.Sh CAVEATS
+The RTL8822BE shares its antennas with the Bluetooth part of the chip.
+While a
+.Nm
+interface is up, the antennas belong to Wi-Fi and Bluetooth cannot use
+them.
+.Pp
+The regulatory database
+.Pa /etc/regdomain.xml
+has no 802.11ac channels for some regions.
+If
+.Xr net80211 4
+then falls back to 802.11a on 5 GHz, add
+.Cm -vht
+to the interface's creation arguments to use 802.11n instead.
+.Sh BUGS
+The driver does not do transmit A-MPDU aggregation, hardware crypto,
+power saving, or beamforming.
+.Pp
+The bpf parameters of injected frames (rate, retries) are ignored.

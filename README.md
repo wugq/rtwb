@@ -13,10 +13,27 @@ is up; no TX aggregation, hardware crypto or power save yet.
 
 ## Install
 
-Build the port in `ports/net/rtwb-kmod` (needs `/usr/src` and the ports
-tree), or install a released package with `pkg install`. The firmware
-comes from `wifi-firmware-rtw88-kmod-rtw8822b`. See `pkg-message` for the
-`/etc/rc.conf` settings.
+Download the package for your FreeBSD version from the
+[releases](https://github.com/wugq/rtwb/releases) page and install it;
+pkg pulls in the firmware package `wifi-firmware-rtw88-kmod-rtw8822b`:
+
+    sudo pkg install ./rtwb-kmod-<version>.<osversion>.pkg
+
+A kernel module only works on the FreeBSD version it was built for (the
+`<osversion>` suffix, e.g. `1501000` for 15.1); reinstall a matching
+package after upgrading FreeBSD.  Alternatively build the port in
+`ports/net/rtwb-kmod`, which needs `/usr/src` and the ports tree.
+
+Then select the driver in `/etc/rc.conf` (the base system's rtw88 claims
+the same device) and reboot:
+
+    devmatch_blocklist="${devmatch_blocklist} if_rtw88"
+    kld_list="${kld_list} if_rtwb"
+    wlans_rtwb0="wlan0"
+    create_args_wlan0="country XX"
+    ifconfig_wlan0="WPA DHCP"
+
+See `rtwb(4)` for the details, statistics and debugging knobs.
 
 ## License
 

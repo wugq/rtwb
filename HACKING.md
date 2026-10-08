@@ -22,7 +22,7 @@ Needs `/usr/src` matching the running kernel and the firmware package
     sysctl dev.rtwb.0          # counters and debug knobs
 
 The LinuxKPI rtw88 driver must not own the device: set
-`devmatch_blocklist="if_rtw88"` in `/etc/rc.conf` and reboot (unloading
+`devmatch_blocklist="${devmatch_blocklist} if_rtw88"` in `/etc/rc.conf` and reboot (unloading
 if_rtw88 at run time can panic in rtw88 itself).
 
 Useful debug sysctls: `debug` (prints the rate adaptation setup on

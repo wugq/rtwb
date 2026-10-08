@@ -22,6 +22,10 @@ GH_ACCOUNT=	wugq
 
 WRKSRC_SUBDIR=	src
 
-PLIST_FILES=	${KMODDIR}/if_rtwb.ko
+PLIST_FILES=	${KMODDIR}/if_rtwb.ko \
+		share/man/man4/rtwb.4.gz
+
+post-install:
+	${INSTALL_MAN} ${WRKSRC}/rtwb.4 ${STAGEDIR}${PREFIX}/share/man/man4
 
 .include <bsd.port.mk>
