@@ -8,10 +8,11 @@ Status: station and monitor mode, WPA/WPA2 (software crypto), 802.11n
 (HT20/HT40) and 802.11ac (VHT80), firmware rate adaptation. Tested on
 FreeBSD 15.1-RELEASE (amd64) with a Lenovo ThinkPad A475.
 
-Bluetooth shares the antenna: the chip's arbiter lets Bluetooth through
-while Wi-Fi is up (light traffic such as a mouse works; audio together
-with 2.4 GHz Wi-Fi is untested), and Bluetooth gets the antenna to
-itself while the interface is down.
+Bluetooth shares the antenna: the chip's arbiter shares it while Wi-Fi
+is up (light traffic such as a mouse works, including reconnecting by
+itself; during heavy 2.4 GHz traffic some connection attempts need a
+retry; audio together with 2.4 GHz Wi-Fi is untested), and Bluetooth
+gets the antenna to itself while the interface is down.
 
 Limitations: only a static Wi-Fi/Bluetooth coexistence setup; no TX
 aggregation, hardware crypto or power save yet.

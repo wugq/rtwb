@@ -196,9 +196,12 @@ Realtek Corporation, under its BSD-3-Clause license option.
 The RTL8822BE shares its antenna with the Bluetooth part of the chip.
 The driver programs a static arbitration setup: while a
 .Nm
-interface is up, the chip's arbiter lets Bluetooth use the antenna when
-it asks for it, which is enough for light traffic such as a mouse or a
-keyboard; while the interface is down, Bluetooth owns the antenna.
+interface is up, the chip's arbiter shares the antenna, which is enough
+for light traffic such as a mouse or a keyboard, including devices that
+reconnect on their own; while the interface is down, Bluetooth owns the
+antenna.
+During heavy 2.4 GHz Wi-Fi traffic some incoming Bluetooth connection
+attempts fail and the device has to retry.
 Bluetooth audio together with 2.4 GHz Wi-Fi may suffer; if it does, use
 5 GHz or bring the interface down.
 .Pp
