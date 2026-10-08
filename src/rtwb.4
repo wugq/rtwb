@@ -193,11 +193,14 @@ driver was written by
 The hardware support code is derived from the Linux rtw88 driver by
 Realtek Corporation, under its BSD-3-Clause license option.
 .Sh CAVEATS
-The RTL8822BE shares its antennas with the Bluetooth part of the chip.
-While a
+The RTL8822BE shares its antenna with the Bluetooth part of the chip.
+The driver programs a static arbitration setup: while a
 .Nm
-interface is up, the antennas belong to Wi-Fi and Bluetooth cannot use
-them.
+interface is up, the chip's arbiter lets Bluetooth use the antenna when
+it asks for it, which is enough for light traffic such as a mouse or a
+keyboard; while the interface is down, Bluetooth owns the antenna.
+Bluetooth audio together with 2.4 GHz Wi-Fi may suffer; if it does, use
+5 GHz or bring the interface down.
 .Pp
 The regulatory database
 .Pa /etc/regdomain.xml
