@@ -47,6 +47,7 @@
 #include <sys/firmware.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
+#include <sys/sx.h>
 #include <sys/mbuf.h>
 #include <sys/socket.h>
 #include <sys/sbuf.h>
@@ -289,6 +290,8 @@ rtwb_set_chan_bw(struct rtwb_softc *sc, uint8_t primary, uint8_t center,
 	uint8_t band;
 
 	RTWB_LOCK_ASSERT(sc);
+	KASSERT(bw == RTW_CHANNEL_WIDTH_20 || bw == RTW_CHANNEL_WIDTH_40 ||
+	    bw == RTW_CHANNEL_WIDTH_80, ("bad channel width %u", bw));
 	if (!((primary >= 1 && primary <= 14) ||
 	    (primary >= 36 && primary <= 177)))
 		return (EINVAL);
@@ -325,7 +328,13 @@ rtwb_set_ieee_chan(struct rtwb_softc *sc, struct ieee80211_channel *c)
 	return (rtwb_set_chan(sc, chan));
 }
 
-/* rtw_core_start() / rtw_power_on(), with the softc lock held. */
+/*
+ * rtw_core_start() / rtw_power_on().  Called with sc_sx held and sc_mtx
+ * not held: the BB/RF tables sleep.  sc_running stays false until the
+ * end, so the interrupt handler and the net80211 methods do not touch
+ * the hardware meanwhile; the last part, which sends H2C commands and
+ * enables interrupts, runs under sc_mtx.
+ */
 static int
 rtwb_hw_init(struct rtwb_softc *sc)
 {
@@ -333,7 +342,8 @@ rtwb_hw_init(struct rtwb_softc *sc)
 	struct ieee80211vap *vap = TAILQ_FIRST(&ic->ic_vaps);
 	int error;
 
-	RTWB_LOCK_ASSERT(sc);
+	RTWB_SX_ASSERT(sc);
+	RTWB_LOCK_ASSERT_NOTOWNED(sc);
 	if (sc->sc_running)
 		return (0);
 
@@ -342,7 +352,9 @@ rtwb_hw_init(struct rtwb_softc *sc)
 	error = rtw_mac_power_on(sc);
 	if (error != 0)
 		return (error);
+	RTWB_LOCK(sc);
 	sc->sc_powered = true;
+	RTWB_UNLOCK(sc);
 
 	pci_enable_busmaster(sc->sc_dev);
 	error = rtwb_download_firmware(sc);
@@ -360,12 +372,15 @@ rtwb_hw_init(struct rtwb_softc *sc)
 	/* BB/RF: register tables, TRX paths, RFE pins (phy_set_param). */
 	rtw8822b_phy_set_param(sc);
 
+	RTWB_LOCK(sc);
 	rtwb_write_addr(sc, REG_PORT0_MACADDR,
 	    vap != NULL ? vap->iv_myaddr : ic->ic_macaddr);
 
 	error = rtwb_set_ieee_chan(sc, ic->ic_curchan);
-	if (error != 0)
+	if (error != 0) {
+		RTWB_UNLOCK(sc);
 		goto fail;
+	}
 
 	/* rtw_hci_start(): interrupts on. */
 	rtw_pci_init_irq_mask(sc);
@@ -379,19 +394,23 @@ rtwb_hw_init(struct rtwb_softc *sc)
 
 	/* WLAN/BT antenna sharing: Wi-Fi only for now (see rtw88_coex.c). */
 	rtw_coex_init_wifi_only(sc);
+	RTWB_UNLOCK(sc);
 	return (0);
 
 fail:
 	rtw_mac_power_off(sc);
+	RTWB_LOCK(sc);
 	sc->sc_powered = false;
+	RTWB_UNLOCK(sc);
 	pci_disable_busmaster(sc->sc_dev);
 	return (error);
 }
 
-/* rtw_core_stop() / rtw_power_off(), with the softc lock held. */
+/* rtw_core_stop() / rtw_power_off(), with sc_sx and sc_mtx held. */
 static void
 rtwb_hw_stop(struct rtwb_softc *sc)
 {
+	RTWB_SX_ASSERT(sc);
 	RTWB_LOCK_ASSERT(sc);
 
 	sc->sc_running = false;
@@ -406,6 +425,7 @@ rtwb_hw_stop(struct rtwb_softc *sc)
 	pci_disable_busmaster(sc->sc_dev);
 	mbufq_drain(&sc->sc_rxq);
 	rtwb_drain_snd(sc);
+	KASSERT(mbufq_len(&sc->sc_snd) == 0, ("send queue not empty"));
 }
 
 /* RX hooks called by port/rtw88_pci.c with the softc lock held. */
@@ -734,7 +754,7 @@ rtwb_parent(struct ieee80211com *ic)
 	bool startall = false;
 	int error;
 
-	RTWB_LOCK(sc);
+	RTWB_SX_LOCK(sc);
 	if (ic->ic_nrunning > 0) {
 		if (!sc->sc_running) {
 			error = rtwb_hw_init(sc);
@@ -744,9 +764,13 @@ rtwb_parent(struct ieee80211com *ic)
 				device_printf(sc->sc_dev,
 				    "hardware init failed (%d)\n", error);
 		}
-	} else if (sc->sc_running || sc->sc_powered)
-		rtwb_hw_stop(sc);
-	RTWB_UNLOCK(sc);
+	} else {
+		RTWB_LOCK(sc);
+		if (sc->sc_running || sc->sc_powered)
+			rtwb_hw_stop(sc);
+		RTWB_UNLOCK(sc);
+	}
+	RTWB_SX_UNLOCK(sc);
 
 	if (startall)
 		ieee80211_start_all(ic);
@@ -790,6 +814,8 @@ rtwb_tx_start(struct rtwb_softc *sc, struct ieee80211_node *ni,
 	int error, queue;
 
 	RTWB_LOCK_ASSERT(sc);
+	KASSERT(ni != NULL, ("TX frame without a node"));
+	KASSERT(sc->sc_running, ("TX while the hardware is down"));
 
 	if (rtw_pci_tx_ring_full(sc, rtw_tx_queue_80211(m)))
 		return (EAGAIN);
@@ -1297,6 +1323,7 @@ rtwb_attach(device_t dev)
 	int error;
 
 	sc->sc_dev = dev;
+	sx_init(&sc->sc_sx, "rtwb init");
 	mtx_init(&sc->sc_mtx, device_get_nameunit(dev), NULL, MTX_DEF);
 	mbufq_init(&sc->sc_rxq, RTWB_RX_RING_LEN);
 	mbufq_init(&sc->sc_snd, RTWB_SND_QUEUE_LEN);
@@ -1362,9 +1389,11 @@ rtwb_detach(device_t dev)
 	}
 
 	if (sc->sc_mem != NULL) {
+		RTWB_SX_LOCK(sc);
 		RTWB_LOCK(sc);
 		rtwb_hw_stop(sc);
 		RTWB_UNLOCK(sc);
+		RTWB_SX_UNLOCK(sc);
 	}
 	rtwb_teardown_intr(sc);
 
@@ -1383,6 +1412,8 @@ rtwb_detach(device_t dev)
 	}
 	if (mtx_initialized(&sc->sc_mtx))
 		mtx_destroy(&sc->sc_mtx);
+	if (lock_initialized(&sc->sc_sx.lock_object))
+		sx_destroy(&sc->sc_sx);
 	return (0);
 }
 

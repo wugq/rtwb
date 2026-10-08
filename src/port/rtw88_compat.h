@@ -19,6 +19,7 @@
 #include <sys/endian.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
+#include <sys/sx.h>
 
 #include <machine/bus.h>
 #include <sys/rman.h>
@@ -50,7 +51,7 @@ typedef uint32_t	__le32;
 #define udelay(us)		DELAY(us)
 #define mdelay(ms)		DELAY((ms) * 1000)
 #undef msleep			/* FreeBSD's msleep(9) is not used in port/ */
-#define msleep(ms)		DELAY((ms) * 1000)
+#define msleep(ms)		rtw_msleep(ms)
 #define usleep_range(a, b)	DELAY(a)
 
 #define min_t(t, a, b)		((t)(a) < (t)(b) ? (t)(a) : (t)(b))
@@ -58,6 +59,17 @@ typedef uint32_t	__le32;
 #define min3(a, b, c)		MIN(MIN(a, b), c)
 #define max3(a, b, c)		MAX(MAX(a, b), c)
 #define clamp_t(t, v, lo, hi)	min_t(t, max_t(t, v, lo), hi)
+
+/*
+ * Linux msleep() sleeps.  In port/ it is only used by the register table
+ * loaders, which run at attach or under sc_sx without sc_mtx held.
+ */
+static inline void
+rtw_msleep(unsigned int ms)
+{
+	WITNESS_WARN(WARN_GIANTOK | WARN_SLEEPOK, NULL, "rtw88 msleep");
+	pause_sbt("rtwbms", SBT_1MS * ms, 0, C_PREL(1));
+}
 
 #define rtw_dbg(rtwdev, mask, ...)	do { } while (0)
 #define rtw_err(rtwdev, ...)	device_printf((rtwdev)->sc_dev, __VA_ARGS__)

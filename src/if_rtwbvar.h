@@ -158,7 +158,8 @@ struct rtwb_vap {
 struct rtwb_softc {
 	struct ieee80211com	sc_ic;
 	device_t		sc_dev;
-	struct mtx		sc_mtx;
+	struct sx		sc_sx;		/* serializes up/down/detach */
+	struct mtx		sc_mtx;		/* everything else */
 	const struct firmware	*sc_fw;
 	struct mbufq		sc_rxq;		/* frames for net80211 */
 	struct mbufq		sc_snd;		/* data frames for TX */
@@ -251,6 +252,16 @@ struct rtwb_softc {
 #define RTWB_LOCK(sc)		mtx_lock(&(sc)->sc_mtx)
 #define RTWB_UNLOCK(sc)		mtx_unlock(&(sc)->sc_mtx)
 #define RTWB_LOCK_ASSERT(sc)	mtx_assert(&(sc)->sc_mtx, MA_OWNED)
+#define RTWB_LOCK_ASSERT_NOTOWNED(sc) mtx_assert(&(sc)->sc_mtx, MA_NOTOWNED)
+
+/*
+ * The hardware bring-up sleeps (register tables with 50 ms waits), so it
+ * runs under sc_sx, a sleepable lock taken before sc_mtx.  While it runs
+ * sc_running is false and the other paths leave the hardware alone.
+ */
+#define RTWB_SX_LOCK(sc)	sx_xlock(&(sc)->sc_sx)
+#define RTWB_SX_UNLOCK(sc)	sx_xunlock(&(sc)->sc_sx)
+#define RTWB_SX_ASSERT(sc)	sx_assert(&(sc)->sc_sx, SA_XLOCKED)
 
 /* rtwb_dma.c */
 int	rtwb_dma_alloc(struct rtwb_softc *, struct rtwb_dma *, bus_size_t,
