@@ -1417,10 +1417,38 @@ rtwb_detach(device_t dev)
 	return (0);
 }
 
+/*
+ * Suspend/resume as in rtwn(4): net80211 stops the running vaps, which
+ * powers the chip off through ic_parent, and restarts them on resume,
+ * which runs the full bring-up again.  The PCI bus restores the config
+ * space and MSI.
+ */
+static int
+rtwb_suspend(device_t dev)
+{
+	struct rtwb_softc *sc = device_get_softc(dev);
+
+	if (sc->sc_ic_attached)
+		ieee80211_suspend_all(&sc->sc_ic);
+	return (0);
+}
+
+static int
+rtwb_resume(device_t dev)
+{
+	struct rtwb_softc *sc = device_get_softc(dev);
+
+	if (sc->sc_ic_attached)
+		ieee80211_resume_all(&sc->sc_ic);
+	return (0);
+}
+
 static device_method_t rtwb_methods[] = {
 	DEVMETHOD(device_probe,		rtwb_probe),
 	DEVMETHOD(device_attach,	rtwb_attach),
 	DEVMETHOD(device_detach,	rtwb_detach),
+	DEVMETHOD(device_suspend,	rtwb_suspend),
+	DEVMETHOD(device_resume,	rtwb_resume),
 
 	DEVMETHOD_END
 };
