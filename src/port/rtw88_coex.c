@@ -472,3 +472,42 @@ void rtw_coex_wifi_off(struct rtw_dev *rtwdev)
 	rtw_write16(rtwdev, REG_WIFI_BT_INFO, BIT_BT_INT_EN);
 	coex_score_board = 0;
 }
+
+/*
+ * The runtime antenna setup, after rtw_coex_init_wifi_only().  That init
+ * (COEX_SET_ANT_WONLY) forces GNT_BT low; rtw88 replaces it at once with
+ * a runtime path chosen from the band and the Bluetooth status.  Without
+ * a runtime path Bluetooth could still start its own transfers but never
+ * got the antenna for its page scan windows, so devices could not connect
+ * to us (a mouse waking up and reconnecting, for example).
+ *
+ * rtwb has no dynamic coexistence yet; this static setup was chosen by
+ * measurement on an RFE type 5 board (incoming Bluetooth connections with
+ * Wi-Fi idle and under iperf3 upload, on 2.4 GHz and 5 GHz):
+ * - GNT_BT by the PTA, GNT_WL high, path owner Wi-Fi, antenna switch by
+ *   the baseband at the 2.4 GHz (WLG) position, PTA table 1.  With Wi-Fi
+ *   idle every connection got through on both bands; under a saturating
+ *   2.4 GHz upload about half did, and the upload kept its throughput.
+ * - rtw88's COEX_SET_ANT_2G (GNT_WL and the switch by the PTA too) got
+ *   Bluetooth through more often under load but halved the upload.
+ * - rtw88's COEX_SET_ANT_5G moves the switch to WLA, which cut Bluetooth
+ *   off the antenna on this board; Wi-Fi on 5 GHz does not use it.
+ * - Tables 0 and 10, which rtw88 uses with its TDMA, let Wi-Fi win every
+ *   time.
+ * It does not depend on the band, but channel switches reprogram the RFE
+ * pins, so it is applied again after each one.
+ */
+void rtw_coex_runtime_setup(struct rtw_dev *rtwdev)
+{
+	struct rtw_coex_rfe *coex_rfe = &coex_rfe_state;
+
+	rtw_coex_set_gnt_bt(rtwdev, COEX_GNT_SET_HW_PTA);
+	rtw_coex_set_gnt_wl(rtwdev, COEX_GNT_SET_SW_HIGH);
+	rtw_coex_coex_ctrl_owner(rtwdev, true);
+	if (coex_rfe->ant_switch_exist)
+		rtw8822b_coex_cfg_ant_switch(rtwdev, COEX_SWITCH_CTRL_BY_BBSW,
+					     COEX_SWITCH_TO_WLG);
+	if (rtw_efuse_share_ant(rtwdev))
+		rtw_coex_set_table(rtwdev, false, COEX_TABLE_SANT_1_BT,
+				   COEX_TABLE_SANT_1_WL);
+}

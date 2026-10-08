@@ -300,6 +300,9 @@ rtwb_set_chan_bw(struct rtwb_softc *sc, uint8_t primary, uint8_t center,
 	rtw8822b_set_channel(sc, center, bw,
 	    sc->hal.current_primary_channel_index);
 	rtw_phy_set_tx_power_level(sc, center);
+	/* During bring-up the coex init runs later and does this itself. */
+	if (sc->sc_running)
+		rtw_coex_runtime_setup(sc);
 	return (0);
 }
 
@@ -393,10 +396,12 @@ rtwb_hw_init(struct rtwb_softc *sc)
 	rtw_fw_send_phydm_info(sc);
 
 	/*
-	 * WLAN/BT antenna sharing: the antenna belongs to Wi-Fi while the
-	 * interface is up, and to Bluetooth while it is down (rtwb_hw_stop).
+	 * WLAN/BT antenna sharing: the PTA shares the antenna while the
+	 * interface is up (see rtw_coex_runtime_setup()), and Bluetooth
+	 * owns it while the interface is down (rtwb_hw_stop()).
 	 */
 	rtw_coex_init_wifi_only(sc);
+	rtw_coex_runtime_setup(sc);
 	RTWB_UNLOCK(sc);
 	return (0);
 
