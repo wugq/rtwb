@@ -17,6 +17,29 @@ gets the antenna to itself while the interface is down.
 Limitations: only a static Wi-Fi/Bluetooth coexistence setup; no TX
 aggregation, hardware crypto or power save yet.
 
+## Tested hardware
+
+Only one machine so far:
+
+| | |
+|---|---|
+| Machine | Lenovo ThinkPad A475 |
+| Adapter | RTL8822BE, PCI `10ec:b822`, subsystem `17aa:b023`, cut D, 2T2R |
+| Board | RFE option 5, Bluetooth antenna shared with Wi-Fi |
+| Firmware | `rtw8822b_fw.bin` 30.20.0 (`wifi-firmware-rtw88-kmod-rtw8822b`) |
+| OS | FreeBSD 15.1-RELEASE, amd64 |
+
+The attach message shows the values that matter for another board:
+
+    rtwb0: MAC xx:xx:xx:xx:xx:xx, RFE option 5, BT antenna shared, firmware 30.20.0, ...
+
+Laptop makers wire the adapter's antennas and RF front end differently
+(the RFE option).  The Wi-Fi code covers the RFE options rtw88 supports
+and refuses the others; the Wi-Fi/Bluetooth coexistence setup was tuned
+by measurement on RFE option 5 only and may need changes elsewhere, see
+HACKING.md.  Reports from other machines (an issue with the attach
+line, the FreeBSD version and what works) are welcome.
+
 ## Install
 
 Download the package for your FreeBSD version from the

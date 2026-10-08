@@ -246,9 +246,11 @@ rtwb_read_hw_info(struct rtwb_softc *sc)
 	rtw_phy_setup_phy_cond(sc, 0);
 	rtw_chip_board_info_setup(sc);
 
-	device_printf(sc->sc_dev, "MAC %6D, RFE option %u, firmware %u.%u.%u, "
-	    "hw cap: bw %#x, nss %u, ptcl %u, ant_num %u\n",
-	    efuse->addr, ":", efuse->rfe_option, sc->sc_fw_version,
+	device_printf(sc->sc_dev, "MAC %6D, RFE option %u, BT antenna %s, "
+	    "firmware %u.%u.%u, hw cap: bw %#x, nss %u, ptcl %u, ant_num %u\n",
+	    efuse->addr, ":", efuse->rfe_option,
+	    (efuse->bt_setting & 0x1) ? "shared" : "separate",
+	    sc->sc_fw_version,
 	    sc->sc_fw_subversion, sc->sc_fw_subindex, sc->sc_hw_cap_bw,
 	    sc->sc_hw_cap_nss, sc->sc_hw_cap_ptcl, sc->sc_hw_cap_ant_num);
 	return (0);

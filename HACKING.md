@@ -61,6 +61,43 @@ association), `tx_report` (asks the firmware for per-frame TX status),
   `devctl resume rtwb0`; `pciconf -r pci0:3:0:0 0x44` shows the PCI
   power state (low bits 3 = D3, 0 = D0), and wlan0 should reassociate.
 
+## Bluetooth coexistence on another board
+
+Wi-Fi and Bluetooth share the antenna through the chip's arbiter (PTA).
+`rtw_coex_runtime_setup()` in `src/port/rtw88_coex.c` programs a static
+setup that was chosen by measurement on RFE option 5 with a shared
+antenna; rtw88's own runtime paths behaved worse there.  On another
+board, check it like this:
+
+1. Test incoming connections, not just outgoing ones (a mouse or
+   headphones reconnecting are incoming): from another Bluetooth host,
+   open an L2CAP connection to PSM 1 of this machine, e.g. with Python
+   on Linux:
+   `socket.socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP).connect((addr, 1))`.
+   "Connection refused" means the connection came up (no sdpd here);
+   "Host is down" after 5.12 s is a page timeout.  Try with wlan0 down,
+   with Wi-Fi idle and during an iperf3 upload, on 2.4 GHz and 5 GHz
+   (`ifconfig wlan0 chanlist 1-13` or `36-165`, then down/up).
+2. Read the current setup with the debug sysctls (`reg_addr`, then
+   `reg_val`); the registers stay as written until the next channel
+   switch:
+   - GNT signals: write `0x800F0038` to `0x1700`, read `0x1708`.  Bits
+     `0xcc00` are GNT_BT, `0x3300` GNT_WL; per two-bit field 0 = PTA,
+     1 = forced low, 3 = forced high.  Write a new value to `0x1704`,
+     then `0xC00F0038` to `0x1700`.
+   - PTA table: `0x6c0` and `0x6c4` (rtw88's `table_sant_8822b[]`).
+   - Antenna switch: low byte of `0xcb4` (`0x77` baseband, `0x66` PTA),
+     bits 9:8 of `0xcbc` (= `0xcbd[1:0]`, the position).
+   - Path owner: bit 26 of `0x70` (1 = Wi-Fi).
+3. Change one thing at a time, repeat step 1 with enough tries (the
+   2.4 GHz band is noisy), and compare the Wi-Fi throughput too.  Then
+   make the result conditional on the RFE option in
+   `rtw_coex_runtime_setup()`.
+
+The Realtek vendor driver (e.g. github.com/morrownr/88x2bu-20210702,
+`hal/btc/halbtc8822b1ant.c` and `halbtc8822b2ant.c`) documents more of
+these registers, but it is GPL-2.0 only: read it, do not copy from it.
+
 ## Release
 
 1. Set `DISTVERSION` in `ports/net/rtwb-kmod/Makefile`, commit.

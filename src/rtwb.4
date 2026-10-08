@@ -87,6 +87,13 @@ driver supports the following PCIe Wi-Fi devices:
 .It
 Realtek 802.11ac wireless 8822be (RTL8822BE)
 .El
+.Pp
+It has been tested on a Lenovo ThinkPad A475 only (RFE option 5,
+Bluetooth antenna shared with Wi-Fi).
+The attach message shows the RFE option and the antenna sharing of a
+board.
+Boards are wired differently, and the Wi-Fi/Bluetooth coexistence setup
+may need tuning on other RFE options.
 .Sh SYSCTL VARIABLES
 The following read-only variables report driver statistics under
 .Va dev.rtwb.%d :
