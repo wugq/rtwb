@@ -309,6 +309,7 @@ void	rtw_phy_setup_phy_cond(struct rtwb_softc *, uint32_t);
 
 /* rtw88_coex.c */
 void	rtw_coex_init_wifi_only(struct rtwb_softc *);
+void	rtw_coex_wifi_off(struct rtwb_softc *);
 
 /* rtw88_tx.c */
 void	rtw_tx_fill_tx_desc(struct rtwb_softc *, struct rtw_tx_pkt_info *,

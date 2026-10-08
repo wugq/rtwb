@@ -436,3 +436,39 @@ void rtw_coex_init_wifi_only(struct rtw_dev *rtwdev)
 		rtw_coex_set_table(rtwdev, true, COEX_TABLE_SANT_1_BT,
 				   COEX_TABLE_SANT_1_WL);
 }
+
+/* table_sant_8822b[2], used by rtw_coex_action_coex_all_off() */
+#define COEX_TABLE_SANT_2_BT	0x66555555
+#define COEX_TABLE_SANT_2_WL	0x66555555
+
+/*
+ * Wi-Fi is going down: hand the antenna back to Bluetooth.  This is
+ * rtw_coex_ips_notify(COEX_IPS_ENTER) -- scoreboard off, antenna path
+ * COEX_SET_ANT_WOFF (path owner and antenna switch to BT), coex "all off"
+ * table -- followed by rtw_coex_power_off_setting().  The TDMA and RF
+ * parameters of coex_all_off are left out: the firmware is about to stop.
+ * Call it while the MAC is still powered.
+ */
+void rtw_coex_wifi_off(struct rtw_dev *rtwdev)
+{
+	struct rtw_coex_rfe *coex_rfe = &coex_rfe_state;
+
+	/* for lps off */
+	rtw_coex_write_scbd(rtwdev, COEX_SCBD_ALL, false);
+
+	/* rtw_coex_set_ant_path(rtwdev, true, COEX_SET_ANT_WOFF) */
+	/* set path control owner to BT */
+	rtw_coex_coex_ctrl_owner(rtwdev, false);
+	if (coex_rfe->ant_switch_exist)
+		rtw8822b_coex_cfg_ant_switch(rtwdev, COEX_SWITCH_CTRL_BY_BT,
+					     COEX_SWITCH_TO_NOCARE);
+
+	/* rtw_coex_action_coex_all_off(): rtw_coex_table(rtwdev, false, 2) */
+	if (rtw_efuse_share_ant(rtwdev))
+		rtw_coex_set_table(rtwdev, false, COEX_TABLE_SANT_2_BT,
+				   COEX_TABLE_SANT_2_WL);
+
+	/* rtw_coex_power_off_setting(): scoreboard cleared, BT interrupt on */
+	rtw_write16(rtwdev, REG_WIFI_BT_INFO, BIT_BT_INT_EN);
+	coex_score_board = 0;
+}

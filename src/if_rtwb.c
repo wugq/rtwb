@@ -392,7 +392,10 @@ rtwb_hw_init(struct rtwb_softc *sc)
 	rtw_fw_send_general_info(sc);
 	rtw_fw_send_phydm_info(sc);
 
-	/* WLAN/BT antenna sharing: Wi-Fi only for now (see rtw88_coex.c). */
+	/*
+	 * WLAN/BT antenna sharing: the antenna belongs to Wi-Fi while the
+	 * interface is up, and to Bluetooth while it is down (rtwb_hw_stop).
+	 */
 	rtw_coex_init_wifi_only(sc);
 	RTWB_UNLOCK(sc);
 	return (0);
@@ -417,6 +420,8 @@ rtwb_hw_stop(struct rtwb_softc *sc)
 	sc->sc_assoc = false;
 	rtw_pci_disable_interrupt(sc);
 	if (sc->sc_powered) {
+		/* Bluetooth gets the shared antenna while Wi-Fi is down. */
+		rtw_coex_wifi_off(sc);
 		/* Powering the MAC off stops its DMA engines. */
 		rtw_pci_dma_release(sc);
 		rtw_mac_power_off(sc);
